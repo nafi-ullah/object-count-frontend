@@ -10,6 +10,7 @@ interface FileObject {
       type: string;
       url: string;
       file: File; // Add the file property here
+      duration: number;
     };
   }
   
@@ -30,29 +31,56 @@ interface FileObject {
   interface PropsToBeSet {
     setResponse: React.Dispatch<React.SetStateAction<ApiResponse | null>>;
     setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
+    setTotalDuration: React.Dispatch<React.SetStateAction<number>>;
+    setIsGotResponse: React.Dispatch<React.SetStateAction<boolean>>;
   }
 
-const FileUpload: React.FC<PropsToBeSet> = ({ setResponse, setIsLoading }) => {
+const FileUpload: React.FC<PropsToBeSet> = ({ setResponse, setIsLoading, setTotalDuration, setIsGotResponse }) => {
     const [files, setFiles] = useState<FileObject>({});
    // const [response, setResponse] = useState<ApiResponse | null>(null); // State to store the API response
    // const [isLoading, setIsLoading] = useState<boolean>(false); // Loading state
     const galleryRef = useRef<HTMLUListElement>(null);
     const overlayRef = useRef<HTMLDivElement>(null);
     const hiddenInputRef = useRef<HTMLInputElement>(null);
-  
-    const addFile = (file: File) => {
-      const objectURL = URL.createObjectURL(file);
-  
-      const newFile = {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        url: objectURL,
-        file: file, // Store the actual file object
+
+    const getVideoDuration = (file: File): Promise<number> => {
+        return new Promise((resolve, reject) => {
+          const video = document.createElement('video');
+          video.preload = 'metadata';
+    
+          video.onloadedmetadata = () => {
+            window.URL.revokeObjectURL(video.src);
+            resolve(video.duration);
+          };
+    
+          video.onerror = () => {
+            reject(new Error('Failed to load video duration.'));
+          };
+    
+          video.src = URL.createObjectURL(file);
+        });
       };
   
-      setFiles((prevFiles) => ({ ...prevFiles, [objectURL]: newFile }));
-    };
+      const addFile = (file: File) => {
+        getVideoDuration(file)
+          .then((duration) => {
+            const objectURL = URL.createObjectURL(file);
+            setTotalDuration(duration);
+            const newFile = {
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              url: objectURL,
+              file: file, // Store the actual file object
+              duration: duration, // Store the duration of the video
+            };
+    
+            setFiles((prevFiles) => ({ ...prevFiles, [objectURL]: newFile }));
+          })
+          .catch((error) => {
+            console.error('Error getting video duration:', error);
+          });
+      };
   
     const handleDrop = (e: React.DragEvent) => {
       e.preventDefault();
@@ -102,6 +130,7 @@ const FileUpload: React.FC<PropsToBeSet> = ({ setResponse, setIsLoading }) => {
   
     const handleSubmit = async () => {
         setIsLoading(true);
+        setIsGotResponse(false);
       const formData = new FormData();
   
       // Get the first file (assuming only one video is uploaded)
@@ -127,10 +156,11 @@ const FileUpload: React.FC<PropsToBeSet> = ({ setResponse, setIsLoading }) => {
         }
   
         const data = await response.json();
+        setIsGotResponse(true);
         setResponse(data); // Store API response in state
         setIsLoading(false);
         console.log(data); // Show response in console
-        alert("Video processed successfully");
+        // alert("Video processed successfully");
         
       } catch (error) {
         setIsLoading(false);

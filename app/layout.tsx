@@ -16,6 +16,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+      <script async src="https://docs.opencv.org/4.x/opencv.js" type="text/javascript"></script>
+      </head>
       <body className={inter.className}>{children}</body>
     </html>
   );

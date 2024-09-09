@@ -1,27 +1,14 @@
 "use client";
+
 import React, { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 
-const socket = io('http://localhost:5000');
+const socket = io('http://13.127.62.27:5000');
 
 const VideoStream: React.FC = () => {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const [processedFrame, setProcessedFrame] = useState<string | null>(null);
-    const [videoFile, setVideoFile] = useState<File | null>(null);
-
-    // Handles the file input
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setVideoFile(file);
-            const url = URL.createObjectURL(file);
-            if (videoRef.current) {
-                videoRef.current.src = url;
-                videoRef.current.play();
-            }
-        }
-    };
+    const [tomatoCount, setTomatoCount] = useState<number>(0);
 
     // Send frame to backend for processing
     const sendFrameToBackend = () => {
@@ -35,31 +22,70 @@ const VideoStream: React.FC = () => {
     };
 
     useEffect(() => {
-        // Listen for processed frames from backend
-        socket.on('processed_frame', (data: { frame: string }) => {
-            setProcessedFrame(data.frame);
+        // Access webcam video on component mount
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then((stream) => {
+                    if (videoRef.current) {
+                        videoRef.current.srcObject = stream;
+                        videoRef.current.play();
+                    }
+                })
+                .catch((err) => {
+                    console.error("Error accessing webcam: ", err);
+                });
+        }
+
+        // Listen for tomato count from backend
+        socket.on('tomato_count', (data: { count: number }) => {
+            setTomatoCount(data.count); // Update the count state with the received tomato count
         });
 
         // Continuously send frames to backend for processing
         const interval = setInterval(sendFrameToBackend, 40);
-        return () => clearInterval(interval); // Clean up
+
+        return () => {
+            clearInterval(interval); // Clean up the interval
+            socket.off('tomato_count'); // Remove socket listener
+        };
     }, []);
+
+    // Function to restart the tomato count
+    const restartCount = () => {
+        socket.emit('restart_count'); // Send restart signal to backend
+    };
 
     return (
         <div>
-            <input type="file" accept="video/*" onChange={handleFileChange} />
+            <video
+                ref={videoRef}
+                width="1280"
+                height="720"
+                style={{ display: 'block' }}
+            />
+            <canvas
+                ref={canvasRef}
+                width="1280"
+                height="720"
+                style={{ display: 'none' }}
+            />
 
-            <video ref={videoRef} width="1280" height="720" controls style={{ display: processedFrame ? 'none' : 'block' }} />
-            <canvas ref={canvasRef} width="1280" height="720" style={{ display: 'none' }} />
+            <div style={{ marginTop: '20px', fontSize: '24px', fontWeight: 'bold' }}>
+                Tomato Count: {tomatoCount}
+            </div>
 
-            {processedFrame && (
-                <img
-                    src={`data:image/jpeg;base64,${processedFrame}`}
-                    alt="Processed Video"
-                    width="1280"
-                    height="720"
-                />
-            )}
+            {/* Restart Button */}
+            <button
+                onClick={restartCount}
+                style={{
+                    padding: '10px 20px',
+                    fontSize: '16px',
+                    marginTop: '20px',
+                    cursor: 'pointer'
+                }}
+            >
+                Restart Count
+            </button>
         </div>
     );
 };

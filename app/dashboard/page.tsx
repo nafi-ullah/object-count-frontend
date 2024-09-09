@@ -97,7 +97,7 @@ const Dashboard = () => {
   return (
     <div className='w-screen h-screen px-14 py-1'>
       <div className='w-full'>
-        <Breadcrum />
+        <Breadcrum resetCount={()=>{}}/>
       </div>
       <div className='w-full md:flex flex-cols md:space-x-10 space-x-0 space-y-10 md:space-y-0'>
         {/* Data show */}
